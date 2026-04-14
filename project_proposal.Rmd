@@ -1,0 +1,196 @@
+---
+title: "Project Proposal--Solar-Readiness of NYC Municipal Buildings"
+output:
+  html_document:
+    df_print: paged
+---
+
+### Data Preparation
+
+```{r setup, echo=TRUE, results='hide', warning=FALSE, message=FALSE}
+library(tidyverse)
+library(readr)
+
+# Load the raw CSV
+# Data source: https://data.cityofnewyork.us/City-Government/City-of-New-York-Municipal-Solar-Readiness-Assessm/cfz5-6fvh/about_data
+raw <- read_csv("./data/City_of_New_York_Municipal_Solar-Readiness_Assessment_(Local_Law_24_of_2016)_data_20260413.csv",
+                show_col_types = FALSE)
+
+# Focus on assessed buildings (those with a Solar-Readiness Assessment of Yes or No).
+# Completed and In-Progress buildings lack roof/building characteristics needed for analysis.
+solar <- raw %>%
+  filter(`Solar-Readiness Assessment` %in% c("Yes", "No")) %>%
+  mutate(
+    # Response variable: binary solar-readiness outcome
+    solar_ready = factor(`Solar-Readiness Assessment`, levels = c("No", "Yes")),
+
+    # Parse gross square footage (stored as e.g. "357,774 GSF")
+    sqft = as.numeric(gsub("[^0-9.]", "", `Total Gross Square Footage`)),
+
+    # Roof Condition as an ordered factor
+    roof_condition = factor(`Roof Condition`,
+                            levels = c("Poor", "Between Fair and Poor", "Fair",
+                                       "Between Good and Fair", "Good",
+                                       "Unknown", "Under Construction")),
+
+    # Roof Age as an ordered factor
+    roof_age = factor(`Roof Age`,
+                      levels = c("> 20 years", "15 to 19 years",
+                                 "10 to 14 years", "5 to 9 years",
+                                 "2 to 4 years", "2 to 4 Years",
+                                 "< 2 years",
+                                 "Unknown", "Under Construction")),
+
+    borough = factor(Borough)
+  ) %>%
+  # Drop the small number of "Upstate" rows (not NYC) and missing sqft
+  filter(Borough != "Upstate", !is.na(sqft))
+```
+
+```{r}
+# Quick check of dimensions and structure
+dim(raw)
+dim(solar)
+str(solar %>% select(solar_ready, sqft, roof_condition, roof_age, borough))
+```
+
+
+### Research question
+
+**Is there a statistically significant association between a NYC municipal building's physical characteristics -- specifically its roof condition, roof age, building size (gross square footage), and borough -- and whether the building is assessed as solar-ready under Local Law 24?**
+
+In other words, can we predict which city-owned buildings are viable candidates for rooftop solar installations based on observable building attributes? This question is relevant to NYC's clean-energy planning because understanding what makes a building solar-ready can help prioritize roof maintenance and future solar deployment across the city's portfolio.
+
+
+### Cases
+
+Each case (observation) is one NYC municipal building that received a solar-readiness assessment under Local Law 24 of 2016 in either the 2020 or 2022 reporting cycle. After filtering to only assessed buildings within the five NYC boroughs that have non-missing square footage data, the dataset contains approximately **3,700 cases**.
+
+```{r}
+nrow(solar)
+```
+
+
+### Data collection
+
+The data was collected by the NYC Department of Citywide Administrative Services (DCAS) as mandated by Local Law 24 of 2016. DCAS assessed the solar photovoltaic potential of all city-owned buildings over 10,000 gross square feet on a biennial basis. Each building's roof was evaluated for physical condition, age, and solar installation feasibility. The data represents a census of eligible municipal buildings, not a sample, so it covers essentially the entire population of qualifying city-owned properties.
+
+
+### Type of study
+
+This is an **observational study**. The explanatory variables (roof condition, roof age, building size, borough) are inherent characteristics of the buildings and were not experimentally assigned or manipulated. Because of this, we can identify associations between building characteristics and solar-readiness but cannot make causal claims.
+
+
+### Data Source
+
+City of New York, Department of Citywide Administrative Services (DCAS). *City of New York Municipal Solar-Readiness Assessment (Local Law 24 of 2016)*. NYC Open Data, 2022. Available at: [https://data.cityofnewyork.us/City-Government/City-of-New-York-Municipal-Solar-Readiness-Assessm/cfz5-6fvh](https://data.cityofnewyork.us/City-Government/City-of-New-York-Municipal-Solar-Readiness-Assessm/cfz5-6fvh)
+
+
+### Describe your variables
+
+**Response (dependent) variable:**
+
+- `solar_ready` -- Whether the building was assessed as solar-ready ("Yes" or "No"). This is a **categorical (binary)** variable. It is suitable for logistic regression.
+
+**Explanatory (independent) variables:**
+
+- `roof_condition` -- The physical condition of the building's roof (Poor, Between Fair and Poor, Fair, Between Good and Fair, Good, Unknown, Under Construction). This is a **categorical (ordinal)** variable.
+- `roof_age` -- The age category of the roof (> 20 years, 15-19 years, 10-14 years, 5-9 years, 2-4 years, < 2 years, Unknown, Under Construction). This is a **categorical (ordinal)** variable.
+- `sqft` -- Total gross square footage of the building. This is a **quantitative (continuous)** variable.
+- `borough` -- NYC borough where the building is located (Manhattan, Brooklyn, Queens, Bronx, Staten Island). This is a **categorical (nominal)** variable.
+
+Since the response variable is binary, a **logistic regression** model is the appropriate method. The dependent variable is `solar_ready`.
+
+
+### Relevant summary statistics
+
+```{r}
+# Overall solar-readiness rate
+solar %>%
+  count(solar_ready) %>%
+  mutate(pct = round(n / sum(n) * 100, 1))
+```
+
+```{r}
+# Summary of building size (sqft)
+summary(solar$sqft)
+```
+
+```{r}
+# Solar-readiness rate by Roof Condition
+solar %>%
+  group_by(roof_condition) %>%
+  summarise(
+    n = n(),
+    n_ready = sum(solar_ready == "Yes"),
+    pct_ready = round(mean(solar_ready == "Yes") * 100, 1),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(pct_ready))
+```
+
+```{r}
+# Solar-readiness rate by Roof Age
+solar %>%
+  group_by(roof_age) %>%
+  summarise(
+    n = n(),
+    n_ready = sum(solar_ready == "Yes"),
+    pct_ready = round(mean(solar_ready == "Yes") * 100, 1),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(pct_ready))
+```
+
+```{r}
+# Solar-readiness rate by Borough
+solar %>%
+  group_by(borough) %>%
+  summarise(
+    n = n(),
+    n_ready = sum(solar_ready == "Yes"),
+    pct_ready = round(mean(solar_ready == "Yes") * 100, 1),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(pct_ready))
+```
+
+```{r fig.width=7, fig.height=4}
+# Bar chart: Solar-readiness rate by Roof Condition
+solar %>%
+  group_by(roof_condition) %>%
+  summarise(pct_ready = mean(solar_ready == "Yes") * 100, .groups = "drop") %>%
+  filter(!roof_condition %in% c("Unknown", "Under Construction")) %>%
+  ggplot(aes(x = roof_condition, y = pct_ready)) +
+  geom_col(fill = "steelblue") +
+  labs(title = "Solar-Readiness Rate by Roof Condition",
+       x = "Roof Condition", y = "Percent Solar-Ready") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+```{r fig.width=7, fig.height=4}
+# Boxplot: Building size by solar-readiness status
+ggplot(solar, aes(x = solar_ready, y = sqft)) +
+  geom_boxplot(fill = c("gray80", "steelblue")) +
+  scale_y_log10(labels = scales::comma) +
+  labs(title = "Building Size by Solar-Readiness Status",
+       x = "Solar-Ready?", y = "Gross Square Footage (log scale)") +
+  theme_minimal()
+```
+
+```{r fig.width=7, fig.height=4}
+# Stacked bar chart: Solar-readiness by Borough
+solar %>%
+  count(borough, solar_ready) %>%
+  group_by(borough) %>%
+  mutate(pct = n / sum(n)) %>%
+  ggplot(aes(x = borough, y = pct, fill = solar_ready)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_manual(values = c("No" = "gray70", "Yes" = "steelblue"),
+                    name = "Solar-Ready") +
+  labs(title = "Solar-Readiness Distribution by Borough",
+       x = "Borough", y = "Proportion") +
+  theme_minimal()
+```
