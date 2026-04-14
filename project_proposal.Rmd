@@ -13,7 +13,7 @@ library(readr)
 
 # Load the raw CSV
 # Data source: https://data.cityofnewyork.us/City-Government/City-of-New-York-Municipal-Solar-Readiness-Assessm/cfz5-6fvh/about_data
-raw <- read_csv("./data/City_of_New_York_Municipal_Solar-Readiness_Assessment_(Local_Law_24_of_2016)_data_20260413.csv",
+raw <- read_csv("https://raw.githubusercontent.com/qingquan-li/data606-project/refs/heads/main/data/City_of_New_York_Municipal_Solar-Readiness_Assessment_(Local_Law_24_of_2016)_data_20260413.csv",
                 show_col_types = FALSE)
 
 # Focus on assessed buildings (those with a Solar-Readiness Assessment of Yes or No).
