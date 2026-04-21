@@ -1,6 +1,7 @@
 ---
 title: "Project Proposal--Solar-Readiness of NYC Municipal Buildings"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
 ---
